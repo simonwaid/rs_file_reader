@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rs_file_reader"
+version = "0.0.1"
+authors = [
+  { name="Simon Waid", email="simon.waid@oeaw.ac.at" },
+]
+description = "Utility for reading Rhode and Schwarz oscilloscope binary files"
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: LGPL",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "None"
+"Bug Tracker" = "None"
