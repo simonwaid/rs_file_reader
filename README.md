@@ -37,24 +37,24 @@ Notet that the oscilloscope will only save raw adc data if you enabled that feat
 
 If you have very large files, inspecting them is an issue. ``RS_analysis`` provides some functions for inspection. E.g. a 2D histogram can be useful: 
 
----python
-    from rs_file_reader import RS_File, RS_analysis
-    from matplotlib import pyplot as plt
-    rs_file=RS_File('my_file.bin')
-    rs_analysis=RS_analysis
+```python
+from rs_file_reader import RS_File, RS_analysis
+from matplotlib import pyplot as plt
+rs_file=RS_File('my_file.bin')
+rs_analysis=RS_analysis
 
-    histogram, extent=det_file.get_2d_histo(source)
+histogram, extent=det_file.get_2d_histo(source)
 
-    dx=extent[1]-extent[0]
-    dy=extent[3]-extent[2]
+dx=extent[1]-extent[0]
+dy=extent[3]-extent[2]
     
-    aspect=dx/dy*0.5
-    plt.imshow(np.flip(histogram,1).transpose(), aspect=aspect, cmap='gist_stern',  extent=extent)
+aspect=dx/dy*0.5
+plt.imshow(np.flip(histogram,1).transpose(), aspect=aspect, cmap='gist_stern',  extent=extent)
 
-    plt.tight_layout()
+plt.tight_layout()
     
-    plt.show()
----
+plt.show()
+```
 
 There is also a small gui for inspection.
 
