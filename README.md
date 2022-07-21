@@ -17,8 +17,9 @@ file_content=rs_file.getAsDf()
 
 ``file_content`` now contains a pandas DataFrame which you can easily process.
 
-You migth have used the oscilloscopes history function, e.g. in fast segmentation mode of because you were requesting averaging. In this case, the file might contain multiple acquisitions. 
-In this case ``file_content`` now contatins all acquistions, one after another. So let's check how many acquistions we got and iterate over them.
+You migth have used the oscilloscope's history function, e.g. in fast segmentation mode of because you were requesting averaging. In this case, the file might contain multiple acquisitions. 
+If you call getAsDf without parameters you will get all acquistions, one after another. To separate acquisitions, you need to provide an acquisition parameter. 
+E.g. in the following we iterate over all acquistitions:
 
 
 ```python
@@ -30,16 +31,17 @@ for acq in acquisitions:
     print(content_one_acq)
 ```
 
-One of the great features of R&S oscilloscopes is their large memory depth. However, this poses some challenges to processing the data generated. One way to deal with this is to process raw ADC data.
-You can get the raw data via:
+One of the great features of R&S oscilloscopes is their large memory depth. However, this poses some challenges to processing the generated data. One way to deal with large amounts of data is to process the raw ADC data.
+For this purpose ``RS_File``provides the method ``getRaw`` which will return the data in the format saved by the oscilloscope without further processing. 
+Note that the oscilloscope will only save raw adc data, if you enabled that feature. If saving raw adc data is disabled, ``getRaw`` will return floating point numbers as the were saved by the oscilloscope. 
+Note, that again you can access single acquisitions via the acquisition parameter:
 
 ```python
 rs_file=RS_File('my_file.bin')
-raw_data=rs_file.getRaw()
+for acq in acquisitions:
+    content_one_acq=rs_file.getRaw(acquisition=acq)
+    print(content_one_acq)
 ```
-
-Again you can access single acquisitions via the acquisition parameter.
-Notet that the oscilloscope will only save raw adc data if you enabled that feature. Alternatively, it might save floating point numbers. In the latter case ``getRaw`` will also return floating point numbers.
 
 If you have very large files, inspecting them is an issue. ``RS_analysis`` provides some functions for inspection. E.g. a 2D histogram can be useful: 
 
@@ -69,11 +71,9 @@ from rs_file_reader import plot_gui
 lot_gui()
 ```
 
-``RS_File`` and ``RS_analysis`` contain some more functionality. For now it is documented in the source code. Hopefully soon I'll post a link to sphinx generated documentation.
+``RS_File`` and ``RS_analysis`` contain some more functionality. For now documention is availbale in the source code only. Hopefully, I'll soon be able to post a link to sphinx generated documentation.
 
 
 ## Development
 
 Unit tests are contained in the tests folder. If you make changes, make sure they pass. 
-
-
