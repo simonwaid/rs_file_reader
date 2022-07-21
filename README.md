@@ -7,71 +7,62 @@ This library was written by guessing what the content of .bin and Wfm.bin files 
 
 In the most simple case, you have a .bin file with a single acquisition with a limited number of samples. In this case, processing the data is easy. 
 
+    from rs_file_reader import RS_File
 
-``
-from rs_file_reader import RS_File
+    rs_file=RS_File('my_file.bin')
+    file_content=rs_file.getAsDf()
 
-rs_file=RS_File('my_file.bin')
-file_content=rs_file.getAsDf()
-``
 
 ``file_content`` now contains a pandas DataFrame which you can easily process.
 
 You migth have used the oscilloscopes history function, e.g. in fast segmentation mode of because you were requesting averaging. In this case, the file might contain multiple acquisitions. 
 In this case ``file_content`` now contatins all acquistions, one after another. So let's check how many acquistions we got and iterate over them.
 
-``
-rs_file=RS_File('my_file.bin')
-acquisitions=rs_file.no_acquisitions
+    rs_file=RS_File('my_file.bin')
+    acquisitions=rs_file.no_acquisitions
 
-for acq in acquisitions:
-	content_one_acq=rs_file.getAsDf(acquisition=acq)
-	print(content_one_acq)
-``
+    for acq in acquisitions:
+        content_one_acq=rs_file.getAsDf(acquisition=acq)
+        print(content_one_acq)
 
 One of the great features of R&S oscilloscopes is their large memory depth. However, this poses some challenges to processing the data generated. One way to deal with this is to process raw ADC data.
 You can get the raw data via:
 
-``
-rs_file=RS_File('my_file.bin')
-raw_data=rs_file.getRaw()
-``
+    rs_file=RS_File('my_file.bin')
+    raw_data=rs_file.getRaw()
+
 
 Again you can access single acquisitions via the acquisition parameter.
 Notet that the oscilloscope will only save raw adc data if you enabled that feature. Alternatively, it might save floating point numbers. In the latter case ``getRaw`` will also return floating point numbers.
 
 If you have very large files, inspecting them is an issue. ``RS_analysis`` provides some functions for inspection. E.g. a 2D histogram can be useful: 
 
-``
-from rs_file_reader import RS_File, RS_analysis
-from matplotlib import pyplot as plt
-rs_file=RS_File('my_file.bin')
-rs_analysis=RS_analysis
+    from rs_file_reader import RS_File, RS_analysis
+    from matplotlib import pyplot as plt
+    rs_file=RS_File('my_file.bin')
+    rs_analysis=RS_analysis
 
-histogram, extent=det_file.get_2d_histo(source)
+    histogram, extent=det_file.get_2d_histo(source)
 
-dx=extent[1]-extent[0]
-dy=extent[3]-extent[2]
+    dx=extent[1]-extent[0]
+    dy=extent[3]-extent[2]
     
-aspect=dx/dy*0.5
-plt.imshow(np.flip(histogram,1).transpose(), aspect=aspect, cmap='gist_stern',  extent=extent)
+    aspect=dx/dy*0.5
+    plt.imshow(np.flip(histogram,1).transpose(), aspect=aspect, cmap='gist_stern',  extent=extent)
 
-plt.tight_layout()
+    plt.tight_layout()
     
-plt.show()
-``
+    plt.show()
 
 There is also a small gui for inspection.
 
-``
-from rs_file_reader import plot_gui
-plot_gui()
-``
+    from rs_file_reader import plot_gui
+    plot_gui()
 
 ``RS_File`` and ``RS_analysis`` contain some more functionality. For now it is documented in the source code. Hopefully soon I'll post a link to sphinx generated documentation.
 
 
-##Development
+## Development
 
 Unit tests are contained in the tests folder. If you make changes, make sure they pass. 
 
