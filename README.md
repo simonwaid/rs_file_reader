@@ -7,10 +7,12 @@ This library was written by guessing what the content of .bin and Wfm.bin files 
 
 In the most simple case, you have a .bin file with a single acquisition with a limited number of samples. In this case, processing the data is easy. 
 
-    from rs_file_reader import RS_File
+```python
+from rs_file_reader import RS_File
 
-    rs_file=RS_File('my_file.bin')
-    file_content=rs_file.getAsDf()
+rs_file=RS_File('my_file.bin')
+file_content=rs_file.getAsDf()
+```
 
 
 ``file_content`` now contains a pandas DataFrame which you can easily process.
@@ -18,19 +20,23 @@ In the most simple case, you have a .bin file with a single acquisition with a l
 You migth have used the oscilloscopes history function, e.g. in fast segmentation mode of because you were requesting averaging. In this case, the file might contain multiple acquisitions. 
 In this case ``file_content`` now contatins all acquistions, one after another. So let's check how many acquistions we got and iterate over them.
 
-    rs_file=RS_File('my_file.bin')
-    acquisitions=rs_file.no_acquisitions
 
-    for acq in acquisitions:
-        content_one_acq=rs_file.getAsDf(acquisition=acq)
-        print(content_one_acq)
+```python
+rs_file=RS_File('my_file.bin')
+acquisitions=rs_file.no_acquisitions
+
+for acq in acquisitions:
+    content_one_acq=rs_file.getAsDf(acquisition=acq)
+    print(content_one_acq)
+```
 
 One of the great features of R&S oscilloscopes is their large memory depth. However, this poses some challenges to processing the data generated. One way to deal with this is to process raw ADC data.
 You can get the raw data via:
 
-    rs_file=RS_File('my_file.bin')
-    raw_data=rs_file.getRaw()
-
+```python
+rs_file=RS_File('my_file.bin')
+raw_data=rs_file.getRaw()
+```
 
 Again you can access single acquisitions via the acquisition parameter.
 Notet that the oscilloscope will only save raw adc data if you enabled that feature. Alternatively, it might save floating point numbers. In the latter case ``getRaw`` will also return floating point numbers.
@@ -58,8 +64,10 @@ plt.show()
 
 There is also a small gui for inspection.
 
-    from rs_file_reader import plot_gui
-    plot_gui()
+```python
+from rs_file_reader import plot_gui
+lot_gui()
+```
 
 ``RS_File`` and ``RS_analysis`` contain some more functionality. For now it is documented in the source code. Hopefully soon I'll post a link to sphinx generated documentation.
 
