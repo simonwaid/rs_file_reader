@@ -95,7 +95,7 @@ class PlotWindow(QMainWindow):
             return
         print(f'Loading into memory {start_idx}, {stop_idx} ... ')
         
-        plt_data = rs_file.getAsDf(start_idx, stop_idx, source=source)
+        plt_data = rs_file.getAsDf(start=start_idx, stop=stop_idx, source=source)
         
         columns=list(plt_data.columns)
         columns.remove('Time')
@@ -444,10 +444,7 @@ class ApplicationWindow(QMainWindow):
         print('Persival saving done!')
         event.accept()   
 
-# Opens the gui for plotting and analyzing
-if __name__ == "__main__":
-    # Check whether there is already a running QApplication (e.g., if running
-    # from an IDE).
+def plot_gui():
     pqt5_exception_workaround()
     qapp = QApplication.instance()
     if not qapp:
@@ -458,3 +455,9 @@ if __name__ == "__main__":
     #app.activateWindow()
     #app.raise_()
     qapp.exec_()
+    
+# Opens the gui for plotting and analyzing
+if __name__ == "__main__":
+    # Check whether there is already a running QApplication (e.g., if running
+    # from an IDE).
+    plot_gui()

@@ -80,11 +80,16 @@ class Test_RS_bin_file(unittest.TestCase):
         for binary, csv in couples.items():
             for start in [None, 100]:
                 for stop in [None, 500]:
-                    
-                    rs_bin_file=RS_File(fullPath(binary))
-                    bin_data_nr=rs_bin_file.getAsDf(start, stop)
-                    rs_csv_file=RS_File(fullPath(csv))
-                    csv_data_nr=rs_csv_file.getAsDf(start, stop)
+                    print(start, stop)
+                    #if start == 980:
+                    #    print('weird') 
+                    try:
+                        rs_bin_file=RS_File(fullPath(binary))
+                        bin_data_nr=rs_bin_file.getAsDf(start=start, stop=stop)
+                        rs_csv_file=RS_File(fullPath(csv))
+                        csv_data_nr=rs_csv_file.getAsDf(start=start, stop=stop)
+                    except:
+                        raise
                     # Rename the columns so the data matches.
                     # Differetnt software versions seem to name traces differently.
                     #columns=csv_data.columns
@@ -116,16 +121,16 @@ class Test_RS_bin_file(unittest.TestCase):
                         test_pass2=(max_error < 1e-3).all()
                         if not test_pass1 or not test_pass2:
                             print(f'Max Error index: {max_error_index}')
-                            start=max_error_index-20
-                            if start <0:
-                                start=0
+                            beginning=max_error_index-20
+                            if beginning <0:
+                                beginning=0
                             end=max_error_index+20
                             if end > len(csv_data):
                                 end=len(csv_data)
                             try:
                                 print(c)
-                                print(bin_data[c][start:end].values)
-                                print(csv_data[c][start:end].values)
+                                print(bin_data[c][beginning:end].values)
+                                print(csv_data[c][beginning:end].values)
                             except:
                                 print('Breakpoint')
                         try:
@@ -158,18 +163,20 @@ class Test_RS_bin_file(unittest.TestCase):
         # Positive test, file size check must return True 
         for file in size_ok_file:
             rs_file=RS_File(fullPath(file))
-            size_ok, file_incomplete=rs_file.check_file_size()
+            size_ok, file_incomplete, file_corrupted=rs_file.check_file()
             if file_incomplete:
                 continue
             if not size_ok:
                 print('Breakpoint')
             self.assertTrue(size_ok, f'Error in file {file}')
+            self.assertFalse(file_corrupted, f'Error in file {file}')
         
         # Negative test, file size check must return False        
         for file in size_not_ok_file:
             rs_file=RS_File(fullPath(file))
-            size_ok, file_incomplete = rs_file.check_file_size()
+            size_ok, file_incomplete, file_corrupted = rs_file.check_file()
             self.assertFalse(size_ok, f'Error in file {file}')
+            self.assertTrue(file_corrupted, f'Error in file {file}')
     
     def test_check_xml(self):
         '''

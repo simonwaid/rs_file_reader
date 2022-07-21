@@ -180,7 +180,7 @@ class RS_Analysis():
         
         return result
  
-    def getStatistics(self, start = None, stop = None):#, source=None):
+    def getStatistics(self, acquisition=None, start = None, stop = None):#, source=None):
         '''
         Returns some statistics on the data. This is a slow but reliable implementation. Consider using :py:meth:`.fastStat`
         
@@ -192,7 +192,7 @@ class RS_Analysis():
         #raise(RuntimeError('This function is buggy, please fix is p'))
         
         # Get filtered data
-        data = self.rs_file.getRaw(start = start, stop = stop, source=None)
+        data = self.rs_file.getRaw(acquisition=acquisition, start = start, stop = stop, source=None)
         
         result = {}
 
@@ -217,12 +217,7 @@ class RS_Analysis():
             # If only fast tasks were requested we're done!
             # Otherwise it's time to calculate the standard deviation.
             # Fast am memory efficient implementation of std calculation.
-            #stdA, stdB, my_min, my_max = _stat(data_ch)
             # Apply a filtering only using values on the other side of the peaks to calculate the std
-            #std = min([stdA, stdB])
-                    
-        #    if stdA > std or stdB > std:
-        #        print(f'Something went wrong! {stdA}, {stdB}') 
             if np.abs(my_min) > np.abs(my_max):
                 mask= data_ch<=0
             else:
@@ -240,7 +235,6 @@ class RS_Analysis():
             
         return result
     
-    
     def get_2d_histo(self, source, start = None, stop = None, no_bins_x=8000, max_bins_y=1024, cutoff_y=1E-5):
         '''
         Returns a 2D histogram of the data. This is useful for plotting acquisitions with a large number of samples.
@@ -253,9 +247,7 @@ class RS_Analysis():
         :param cutoff_y:
         
         :returns: histogram, extent where histogram is a 2d numpy array and extent contains the limits in physical units for use with matplotlib imshow.
-        
-        :TODO: Implement this also for non-implicit time scales.
-        
+                
         '''
         
         data = self.rs_file.getRaw(start = start, stop = stop, source=source)
@@ -380,9 +372,13 @@ class RS_Analysis():
                 stop = s + l + buffer_raw
                 if start < 0:
                     start = 0
-                if stop > (self.rs_file.meta['length_acquisition'] - buffer_raw):
-                    stop = int(self.rs_file.meta['length_acquisition'] - 1)
-                data = self.rs_file.getAsDf(start, stop, time=True)
+                if stop > (self.rs_file.total_no_samples):
+                    stop = int(self.rs_file.total_no_samples)
+                try:
+                    data = self.rs_file.getAsDf(start=start, stop=stop, time=True)
+                except:
+                    print('Breakpoint!')
+                    raise
                 time = data['Time']
                 # change axis to begin at position of the first sample exceeding the threshold
                 time = time - s*t_sample
@@ -464,10 +460,6 @@ class RS_Analysis():
         else:
             threshold_raw = threshold
 
-        # Precedial fine tuning parameters
-        #tmin_signal_raw = int(tmin_signal / t_sample)
-        #tmin_gap_raw = int(tmin_gap / t_sample)
-
         if tmin_signal < t_sample:
             raise(RuntimeError('Initial signal length is smaller than the sample size!!!'))
 
@@ -512,8 +504,6 @@ class RS_Analysis():
             ends = ends[1:]
         if len(starts) > len(ends):
             starts = starts[:len(ends)]
-        #if len(ends) > len(starts):
-        #    ends = ends[:len(starts)]
 
         # Free memory
         del det2
@@ -659,8 +649,6 @@ class RS_Analysis():
             results[source] = self.getTot(source, threshold)
             
         return results, meta 
-
-
 
 @njit
 def _histo_implicit_t(data, no_bins_x, no_bins_y, min_y, dist_y):
