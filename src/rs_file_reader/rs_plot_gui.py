@@ -7,6 +7,7 @@
 
 
 from scipy.fft import rfft, fft, fftfreq, next_fast_len
+from scipy.signal import blackman
 import sys
 import numpy as np
 import time
@@ -16,14 +17,14 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar
 from PySide2.QtWidgets import QApplication, QPushButton, QHBoxLayout, QVBoxLayout, QMainWindow, QWidget, QApplication, QFileDialog, QGroupBox, QLabel, QLineEdit, QMessageBox, QComboBox, QSpacerItem, QSizePolicy
 from PySide2 import QtCore
-from rs_file import RS_File
-from rs_analysis import RS_Analysis
+from rs_file_reader import RS_File
+from rs_file_reader import RS_Analysis
 matplotlib.use("Qt5Agg")  # Declare the use of QT5
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 #from config import CACHE_DIR
 import os 
-from tool_box import pqt5_exception_workaround, Persival
+from rs_file_reader.tool_box import pqt5_exception_workaround, Persival
 
 
 class PlotWindow(QMainWindow):
@@ -73,6 +74,10 @@ class PlotWindow(QMainWindow):
         t=time.time()
         if self.plot is None:
             self.plot=self.ax.imshow(histo_t_log, aspect=aspect, cmap='gist_stern',  extent=extent)
+            self.ax.set_xlabel('Time / s')
+            self.ax.set_ylabel('Voltage / v')
+            cbar=self.figure.colorbar(self.plot)
+            cbar.set_label("Logarithm of no. of occurrence")
         else:
             self.plot.set_data(histo_t)
             self.plot.set_extent(extent)
@@ -109,6 +114,9 @@ class PlotWindow(QMainWindow):
                 ydata=plt_data[column]
                 plot=self.ax.plot(xdata, ydata)
                 self.plot[column] =plot
+                self.ax.set_xlabel('Time / s')
+                self.ax.set_ylabel('Voltage / v')
+            
         else:
             for column in columns:
                 ydata=plt_data[column]
@@ -135,12 +143,14 @@ class PlotWindow(QMainWindow):
         t_sample=rs_file.sample_time
         # Find the appropriate signal length for executing a fast fft.
         fft_len=next_fast_len(length)
-        
+        print(f'Requested fft length: {length}')
+        print(f'Employed fft length: {fft_len}')
+        window=blackman(fft_len)
         print(f'Will use {fft_len} samples for fft.')
         # Get the data
         print(f'Loading data into memory. Source: {source}')
         data=rs_file.getAsDf(start=start_idx, stop=start_idx+fft_len, source=source, time=False) 
-        data=data[source].values
+        data=data[source].values*window
         
         # Compute fft.
         # Note: We keep fft_len as 
@@ -156,6 +166,8 @@ class PlotWindow(QMainWindow):
         
         if self.plot is None:
             self.plot=self.ax.loglog(x, y)
+            self.ax.set_xlabel('Frequency / Hz')
+            self.ax.set_ylabel('Voltage / v')
         else:
             self.plot[0].set_xdata(x)
             self.plot[0].set_ydata(y)

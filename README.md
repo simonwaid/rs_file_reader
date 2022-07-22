@@ -68,7 +68,13 @@ There is also a small gui for inspection.
 
 ```python
 from rs_file_reader import plot_gui
-lot_gui()
+plot_gui()
+```
+
+If you have rs_file_reader installed as a package you can also open the gui from the terminal via:
+
+```bash
+python3 -m rs_file_reader 
 ```
 
 ``RS_File`` and ``RS_analysis`` contain some more functionality. For now documention is availbale in the source code only. Hopefully, I'll soon be able to post a link to sphinx generated documentation.
