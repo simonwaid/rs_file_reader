@@ -101,7 +101,6 @@ class RS_Analysis():
     Extends RS_File with analysis functions for detectors.
     '''
     BUFFER = 5e-8
-    STD_FACTOR=3
     def __init__(self, rs_file, cache_dir = None):
         '''
         :param rs_file: Instance of :py:class:`RS_file`
@@ -127,12 +126,13 @@ class RS_Analysis():
         else:
             self.memory = None
 
-    def fastStat(self, sources=None):
+    def fastStat(self, sources=None, offset_meth='avg'):
         '''
         Fast calculation of statistics over the full sample.
         :TODO: Implement multiprocessing.
         
         :param sources:
+        :param offset_meth: Optional, defaults to "avg". Available options are "avg", "median", "oscilloscope". 
         
         :returns: dict containing statistics.
         '''
@@ -145,29 +145,45 @@ class RS_Analysis():
         # Should be parallelized
         std_res=[]
         for source in sources:
+            
+            if not source in self.rs_file.data_raw_RS.keys():
+                raise(RuntimeError(f'Invalid source {source}'))
             raw_data=self.rs_file.data_raw_RS[source]
+                
             # Depending on the data format use a different method for calculating the statistics.
             # If we have raw adc counts we use  _stat_raw.
             # If we have floats we use  _stat.
+            if offset_meth == 'avg':
+                offset_signal=np.average(raw_data)
+            elif offset_meth == 'median':
+                offset_signal=np.median(raw_data)
+            elif offset_meth == 'oscilloscope':
+                offset_signal=0
+            else:
+                raise(RuntimeError('Invalid offset method. Available options: "avg" and "median"'))
+            
             if self.rs_file.meta['apply_offset']:
-                offset =self.rs_file.meta['offset'][source]
                 scaling = self.rs_file.meta['conversion_factor'][source]
+                if offset_meth == 'oscilloscope': 
+                    offset =self.rs_file.meta['offset'][source]
+                    offset_ret=0.
+                else:
+                    offset = 0.
+                    offset_ret=offset_signal*scaling+self.rs_file.meta['offset'][source]
                 # Calculate the standard deviations
-                avg=np.average(raw_data)
-                offset_signal=avg
                 data_ch = _stat_raw(raw_data, offset, offset_signal, scaling)
                 std_res.append(data_ch)
- 
+                
                 #  p.add(_one_side_std_raw, [raw_data, offset, scaling])
             else:
-                offset=np.average(raw_data)
-                std_res.append(_stat(raw_data, offset))
+                std_res.append(_stat(raw_data, offset_signal))
+                offset_ret=offset_signal
                 #    p.add(_one_side_std, [raw_data])
         
         # Evaluation loop
         for i, source in enumerate(sources):
             
-            stdA, stdB, my_min, my_max, offset= std_res[i]
+            stdA, stdB, my_min, my_max= std_res[i]
             # Out standard deviation for the threshold is the minimum. 
             std=min([stdA, stdB])
             result[source]={}
@@ -176,7 +192,7 @@ class RS_Analysis():
             result[source]['stdB'] = stdB
             result[source]['min'] = my_min
             result[source]['max'] = my_max
-            result[source]['offset'] = offset
+            result[source]['offset'] = offset_ret
         
         return result
  
@@ -592,11 +608,14 @@ class RS_Analysis():
 
         return results
 
-    def getTotAuto(self, sources=None):
+    def getTotAuto(self, sources=None, offset_meth='avg', std_threshold=6):
         '''
         Convenience function to get the tot with reasonable assumptions. Calls :py:meth:`.getTot_fine`
         
         :param sources: List of sources to be processed. 
+        :param offset_meth: Optional, defaults to "avg". Available options are "avg", "median". 
+        :param std_threshold:
+        
         :returns: results, meta. results is a dict containing the results. the source name is the key. meta is a dict containing meta data such as the standard deviations. 
         '''
         
@@ -604,12 +623,16 @@ class RS_Analysis():
         
         if sources is None:
             sources= self.rs_file.meta['source_names']
-
+        elif type(sources) == list:
+            pass
+        else:
+            raise(RuntimeError('sources must be None or a list'))
+        
         # Get the statistics.
         t=time.time()
         
         #stats = self.getStatistics(source=sources)
-        stats = self.fastStat(sources)
+        stats = self.fastStat(sources, offset_meth=offset_meth)
         print('Statistics took: ', time.time()-t)
         
         # Calculate the time over threshold
@@ -622,7 +645,7 @@ class RS_Analysis():
             my_min=stats[source]['min']
             my_max=stats[source]['max']
             # Get the threshold.
-            threshold= std*self.STD_FACTOR
+            threshold= std*std_threshold
             # Adjust the sign of threshold.
             # Using the min and max value to determine the sign seems best.
             # An alternative would be to compare the two standard deviations.
@@ -726,9 +749,8 @@ def _stat_raw(data, offset, offset_signal, scaling):
     else:
         stdB = math.sqrt(sideB_sum/sideB_len)
     
-    offset_signal_ret=float(offset_signal)*scaling+offset
         
-    return stdA, stdB, my_min, my_max, offset_signal_ret
+    return stdA, stdB, my_min, my_max
     
 @njit
 def _stat(data, offset_signal):
@@ -768,7 +790,7 @@ def _stat(data, offset_signal):
     else:
         stdB = math.sqrt(sideB_sum/sideB_len)
     
-    return stdA, stdB, my_min, my_max, offset_signal
+    return stdA, stdB, my_min, my_max
     
 @njit
 def _peak_filter(starts, ends, lenght_min, tmin_gap_raw):

@@ -11,12 +11,12 @@ from scipy.signal import blackman
 import sys
 import numpy as np
 import time
-from PySide2 import QtWidgets
+from PySide6 import QtWidgets
 import matplotlib
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar
-from PySide2.QtWidgets import QApplication, QPushButton, QHBoxLayout, QVBoxLayout, QMainWindow, QWidget, QApplication, QFileDialog, QGroupBox, QLabel, QLineEdit, QMessageBox, QComboBox, QSpacerItem, QSizePolicy
-from PySide2 import QtCore
+from PySide6.QtWidgets import QApplication, QPushButton, QHBoxLayout, QVBoxLayout, QMainWindow, QWidget, QApplication, QFileDialog, QGroupBox, QLabel, QLineEdit, QMessageBox, QComboBox, QSpacerItem, QSizePolicy
+from PySide6 import QtCore
 from rs_file_reader import RS_File
 from rs_file_reader import RS_Analysis
 matplotlib.use("Qt5Agg")  # Declare the use of QT5

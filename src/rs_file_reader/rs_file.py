@@ -341,17 +341,64 @@ class RS_File():
         meta['acquistions_incomplete'] = None
         return meta
 
-    def timeToIndex(self, time):
+    def timeToIndex(self, time, out_of_range="None"):
         '''
-        Returns an index corresponding to the given time in seconds. Returns None if the time is out of range.
+        Returns an index corresponding to the given time in seconds. 
+        
+        :param time: Time in seconds
+        :out_of_range: Controls the way out of range values are handled. Valid options are "None" and "Nearest".\ 
+        "None" will return None for out of range values of time. "Nearest" will return the closest valid index.  Optional, defaults to "None". 
         '''
         
-        if time < self.meta['xStart'] or time >  self.meta['xStop']:
-            return None
-        
+        if time < self.meta['xStart']:
+            if out_of_range == "None":
+                return None
+            elif out_of_range == "Nearest":
+                return self.meta['xStart']
+            else:
+                raise(RuntimeError(f'Invalid value for out_out_range: {out_of_range}'))
+            
+        if time >  self.meta['xStop']:
+            if out_of_range == "None":
+                return None
+            elif out_of_range == "Nearest":
+                return self.meta['xStop']
+            else:
+                raise(RuntimeError(f'Invalid value for out_out_range: {out_of_range}'))
+            
         time_offset=time-self.meta['xStart']
         index=time_offset/self.meta['t_sample']
         return int(index)
+
+
+    def indexToTime(self, index, out_of_range="None"):
+        '''
+        Returns the time corresponding to the given index in seconds. Returns None if the time is out of range.
+
+        :param index: Index value
+        :out_of_range: Controls the way out of range values are handled. Valid options are "None" and "Nearest".\ 
+        "None" will return None for out of range values of time. "Nearest" will return the closest valid index.  Optional, defaults to "None". 
+        
+        '''
+        if index < 0:
+            if out_of_range == "None":
+                return None
+            elif out_of_range == "Nearest":
+                return 0
+            else:
+                raise(RuntimeError(f'Invalid value for out_out_range: {out_of_range}'))
+            
+        if index > self.meta['length_total']:
+            if out_of_range == "None":
+                return None
+            elif out_of_range == "Nearest":
+                return self.meta['length_total']
+            else:
+                raise(RuntimeError(f'Invalid value for out_out_range: {out_of_range}'))
+        
+        time_offset=self.meta['xStart']
+        time=index*self.meta['t_sample']+time_offset
+        return time
 
     def check_file(self):
         '''
