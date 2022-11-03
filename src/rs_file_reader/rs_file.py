@@ -483,6 +483,7 @@ class RS_File():
 
             length_raw_expected = self.meta['length_raw_expected']*self.meta['NumberOfAcquisitions']
             length_raw_observed = len(self._data[self.meta['channel_name'][0]])
+            
             # Doing sanity checks here is tricky.
             # 1. There seems to be a bug in the oscilloscope software. For xy data the length does not match even if the data is fine
             # 2. If NumberOfAcquisitions is larger than 1 this seems to be an upper bound and not the actual lenght of the acquisitions.

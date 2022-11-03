@@ -49,9 +49,9 @@ If you have very large files, inspecting them is an issue. ``RS_analysis`` provi
 from rs_file_reader import RS_File, RS_analysis
 from matplotlib import pyplot as plt
 rs_file=RS_File('my_file.bin')
-rs_analysis=RS_analysis
+rs_analysis=RS_analysis(rs_file)
 
-histogram, extent=det_file.get_2d_histo(source)
+histogram, extent=rs_analysis.get_2d_histo(source)
 
 dx=extent[1]-extent[0]
 dy=extent[3]-extent[2]
