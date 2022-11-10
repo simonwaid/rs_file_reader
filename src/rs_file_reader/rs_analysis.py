@@ -110,6 +110,8 @@ class RS_Analysis():
         # Initialize the cache
         # Change this rev. number to invalidate the cache
         rev = 1
+        self.cache_fast_stat={}
+        self.cache_statistics={}
         if not cache_dir is None:
             instance_id = str(self.rs_file.meta)+str(rev)
             self.memory = MyCache(cache_dir, instance_id)
@@ -126,6 +128,9 @@ class RS_Analysis():
         else:
             self.memory = None
 
+
+
+    
     def fastStat(self, sources=None, offset_meth='avg'):
         '''
         Fast calculation of statistics over the full sample.
@@ -137,9 +142,13 @@ class RS_Analysis():
         :returns: dict containing statistics.
         '''
         
-        if sources is None:
-            sources= self.rs_file.meta['source_names']
-
+        sources=self.rs_file._sanitize_sources(sources)
+        
+        # We cache the result of each function call and perform the statistics computation only if needed.
+        key=f'sources: {sources}, offset_meth: {offset_meth}'
+        if key in self.cache_fast_stat:
+            return self.cache_fast_stat[key]
+        
         result={}
         # Calculation loop.
         # Should be parallelized
@@ -193,7 +202,9 @@ class RS_Analysis():
             result[source]['min'] = my_min
             result[source]['max'] = my_max
             result[source]['offset'] = offset_ret
-        
+
+        self.cache_fast_stat[key] = result
+                
         return result
  
     def getStatistics(self, acquisition=None, start = None, stop = None):#, source=None):
@@ -208,10 +219,10 @@ class RS_Analysis():
         #raise(RuntimeError('This function is buggy, please fix is p'))
         
         # Get filtered data
-        data = self.rs_file.getRaw(acquisition=acquisition, start = start, stop = stop, source=None)
+        data = self.rs_file.getRaw(acquisition=acquisition, start = start, stop = stop, sources=None)
         
         result = {}
-
+        
         # We operate on one channel at a time to keep the memory footprint low.
         for i, ch in enumerate(self.rs_file.meta['source_names']):
 
@@ -266,8 +277,8 @@ class RS_Analysis():
                 
         '''
         
-        data = self.rs_file.getRaw(start = start, stop = stop, source=source)
-        data=data[source]
+        data = self.rs_file.getRaw(start = start, stop = stop, sources=source)
+        #data=data[source]
         # We need to parameterize our 2D output array first.
         # We start with the number of y bins. 
         # We compute the unique values first.
@@ -412,14 +423,17 @@ class RS_Analysis():
                 peak_count += 1
                 plt.close()
 
-    def get_threshold(self, stats):
+    def get_threshold(self, sources, std_factor = 6):
         '''
         Returns the threshold for each channel based on a given dict including max, min and std values as 
         we get it for each channel from _getStatistics
-        :param stats: Output from getStatistics including max, min and std
+        :param sources: the sources for which the threshold should be computed.
+        
+        :TODO: Also Handle non-AC-couped signals. 
         '''
-        std_factor = 6
         result = {}
+        
+        stats=self.fastStat(sources)
             
         for source, values in stats.items():
             threshold = 0

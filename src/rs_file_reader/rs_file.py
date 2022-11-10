@@ -11,8 +11,228 @@ import os
 import logging
 import numpy as np
 import pandas as pd
-import numpy as np
 import binascii
+from numba import njit 
+
+# Fraction of chunks used for standard deviation and average calculation.
+AVG_NO_CHUNKS=0.1
+
+@njit
+def _chunk_processor(data_in, chunk_size):
+    
+    no_chunks=int(len(data_in)/chunk_size)
+
+    chunks_std=np.empty(no_chunks-1)
+    chunks_avg=np.empty(no_chunks-1)
+    for i in range(no_chunks-1):
+        data=data_in[i*chunk_size:(i+1)*chunk_size]
+        chunks_avg[i]=np.average(data)
+        chunks_std[i]=np.std(data)
+    
+    return chunks_avg, chunks_std
+
+class Burst_Indices():
+    
+    def __init__(self, starts, ends):
+        '''
+        Class for packing the starts and ends of a burst into a single object.
+        '''
+        self.starts=np.array(starts)
+        self.ends=np.array(ends)
+    
+    def __len__(self):
+        '''
+        '''
+        return len(self.starts)
+    
+    def chop_signal(self, data=None):
+        '''
+        Chops the provided signal using the saved start and end indices. 
+        
+        :returns: list of objects similar to data.
+        '''
+        
+        result=[]
+        for start, end in zip(self.starts, self.ends):
+            result.append(data[start:end])
+            
+        return result
+    
+    def get_durations(self):
+        '''
+        Returns the difference between ends and starts
+        '''
+        
+        durations=self.ends-self.starts
+        
+        return durations
+    
+    def filter_bool(self, filter):
+        '''
+        Returns a new instance of this class containing only starts and ends where the filter is True
+        
+        :param filter: Array of the same length as starts and ends
+        '''
+        
+        starts= self.starts[filter]
+        ends= self.ends[filter]
+    
+        new_class=Burst_Indices(starts, ends)
+        
+        return new_class
+
+    
+    def filter(self, min_idx, max_idx):
+        '''
+        Returns a new instance of this class containing only indices between min_idx and max_idx.
+        
+        :param min_idx:
+        :param max_idx: 
+        '''
+        
+        starts_fitler=(self.starts > min_idx) & (self.starts < max_idx)  
+        ends_fitler=(self.ends > min_idx) & (self.ends < max_idx)
+        
+        starts=self.starts[starts_fitler]
+        ends=self.ends[ends_fitler]
+        
+        new_class=Burst_Indices(starts, ends)
+        
+        return new_class
+        
+    def offset(self, offset):
+        '''
+        Adds the given offset to both starts and ends
+        '''
+        self.starts += offset
+        self.ends += offset
+        
+        
+    
+
+def detect_bursts(data_in, chunk_size, min_len_pause, min_len_burst, burst_buffer, noise_dist = 7, max_dist = 0, return_cmp=False):
+    '''
+    Detect spills. 
+    
+    Concept:
+        1. Find a pause between bursts to extract dark counts: 
+            1.2. Divide data into chunks of size chunk_size. 
+            1.3. For each chunk we compute average and standard deviation. When a signal is present, the standard deviation is large than when no signal is present.
+            1.4. We search for the chunks with smallest standard deviation. These chunks should represent the background noise. 
+        2. Find the beginning and end of bursts:
+            2.1. Based on the data from 1.4 we calculate a threshold above which we assume a signal is present. 
+            2.2. We use this threshold search for potential beginnings and ends of bursts. 
+            2.3. We merge potential beginnings and ends. Between the end and the beginning of the next bursts there is a pause of at least min_len_pause.
+            2.4. We add some buffer to the burst so our data will include the very beginning the burst.
+    
+    :param data_in: Linear array containing an intensity signal.
+    :param chunk_size: Processing happens in chunks. Set this to approx. 20% of the minimum pause you expect between spills. Unit: number of samples. 
+    :param min_len_pause: The minimum pause you expect between spills. Unit: number of samples.
+    :param min_len_burst: The minimum length of a spill. Shorter spills will be ignored. Unit: number of samples.
+    :param burst_buffer: The buffer that should be added at the beginning and end of each spill. Unit: number of samples.
+    :param noise_dist: Optional.
+    :param max_dist: Optional.
+    :param return_cmp: Optional. Defaults to False. If True cmp will be returned, if False, cmp will be None.
+    
+    :returns  starts, ends, cmp, info: starts and ends contains the indexes at which spills start and end respectively. cmp and info contain internal information for debugging.
+    
+    '''
+    
+    
+    # Only integer indices make sense. Convert the input if the user has not done so yet.
+    chunk_size=int(chunk_size)
+    min_pause=int(min_len_pause)
+    min_spill=int(min_len_burst)
+    burst_buffer=int(burst_buffer)
+    # 1.2. and 1.3 calculate standard deviation and average for each chunk.
+    
+    chunks_avg, chunks_std=_chunk_processor(data_in, chunk_size)
+    
+    # 1.4, 1.5, 2.1 find the minimum standard deviation and calculate threshold
+   
+    # Getting a valid average and standard does not work well when using a single chunk.
+    # Therefore we sort the chunks by std and evaluate the chunks with the lowest std.
+    avg_no_chunks=int(len(chunks_avg)*AVG_NO_CHUNKS)
+    chunks_std_idx_sort=np.argsort(chunks_std)
+    chunks_std_idx=chunks_std_idx_sort[:avg_no_chunks]
+    
+    ref_avg=np.mean(chunks_avg[chunks_std_idx])
+    ref_std_min=np.mean(chunks_std[chunks_std_idx])
+    ref_std_min_th=ref_std_min*noise_dist
+    
+    # Using the noise as reference is not always reliable. We also have an alternative method.
+    ref_chunk_idx_max=np.argmax(chunks_std)
+    
+    ref_std_max_th=chunks_std[ref_chunk_idx_max]*max_dist
+    std_th=np.max([ref_std_min_th, ref_std_max_th])
+
+    threshold_upper=ref_avg + std_th 
+    threshold_lower=ref_avg - std_th 
+    
+    # 2.2 find potential beginnings and ends of spills   
+    cmp_upper= np.array(data_in > threshold_upper, dtype=np.int8) 
+    cmp_lower= np.array(data_in < threshold_lower, dtype=np.int8)
+    cmp_a = np.logical_or(cmp_upper, cmp_lower).astype(np.int8)
+    del cmp_upper 
+    del cmp_lower
+    cmp_b=cmp_a[:-1]-cmp_a[1:]
+    ends=np.where(cmp_b == 1)[0]
+    starts=np.where(cmp_b == -1)[0]
+    del cmp_b
+    
+    # Handle the situation where we start or end with beam being present.
+    if cmp_a[0]:
+        #ends=np.insert(ends,0,0)
+        starts=np.insert(starts,0,0)
+        
+    if cmp_a[-1]:
+        #starts=np.append(starts,len(data_in)-1)
+        ends=np.append(ends,len(data_in)-1)
+        
+    # 2.3 Merge potential spills 
+    max_dist_pause=int(min_pause)
+    
+    dist=np.subtract(starts[1:], ends[:-1])
+    real_spills=np.where(dist>max_dist_pause)[0]
+    starts_real=starts[real_spills +1 ]
+    ends_real=ends[real_spills]
+
+    #
+    if starts_real[0] > ends_real[0] :
+        starts_real=np.insert(starts_real, 0, starts[0])
+        ends_real=np.append(ends_real, ends[-1])
+        
+    # Eliminate spills which are too short
+    dist=np.subtract(ends_real, starts_real)
+    real_spills=np.where(dist>min_spill)[0]
+    starts_real=starts_real[real_spills]
+    ends_real=ends_real[real_spills]
+        
+    # 2.4 add buffer
+    starts_buf=np.array([s - burst_buffer if s - burst_buffer > 0 else 0  for s in starts_real]) 
+    ends_buf=np.array([s + burst_buffer if s + burst_buffer < len(data_in) else len(data_in)-1 for s in ends_real])
+    
+    # Pack the indices into a class
+    indices_buf=Burst_Indices(starts_buf, ends_buf)
+    indices_raw=Burst_Indices(starts, ends)
+    indices_nobuf=Burst_Indices(starts_real, ends_real)
+    
+    
+    info={'chunks_std_idx': chunks_std_idx,\
+          'chunks_std': chunks_std,\
+          'chunks_avg': chunks_avg, \
+          'ref_avg' : ref_avg, \
+          'threshold_upper': threshold_upper, \
+          'threshold_lower': threshold_lower, \
+          'indices_raw': indices_raw, \
+          'indices_nobuf': indices_nobuf}
+    
+    # The content of cmp has the same size as data_in and can thus become quite large. 
+    # As it is only used for debugging, we normally don't care about it and thus avoid the overhead of returning it. 
+    if not return_cmp:
+        cmp_a=None
+    
+    return indices_buf, cmp_a, info 
 
 class RS_File():
     '''
@@ -64,6 +284,8 @@ class RS_File():
         else:
             raise(RuntimeError('File type not implemented.'))
 
+
+        self.bursts={}
         self.meta['metadata_file'] = self.metadata_file
 
     def _genTimeAxis(self, acquistion, start, stop):
@@ -116,6 +338,29 @@ class RS_File():
 
     def forgetRaw(self):
         self._data = None
+        
+    def detect_bursts(self, source, chunk_size, min_len_pause, min_len_burst, burst_buffer, noise_dist = 7, max_dist = 0):
+        '''
+        Detects bursts in the signal and returns the indices of the beginning and end of the bursts. The signal is split into chunks.
+        Note: the result of the function is cached in memory.
+        
+        :param source: Name of a single channel to be analyzed. TODO: Make this consistent with all other functions.
+        :param chunk_size:  See :py:`meth:detect_bursts`
+        :param min_pause:  See :py:`meth:detect_bursts`
+        :param min_spill:  See :py:`meth:detect_bursts`
+        :param spill_buffer:  See :py:`meth:detect_bursts`
+        
+        '''
+        
+        key=f'{source}, {chunk_size}, {min_len_pause}, {min_len_burst}, {burst_buffer}, {noise_dist}, {max_dist}'
+        
+        if not key in self.bursts:
+            
+            data_in=self.getRaw(sources=source)
+            self.bursts[key]=detect_bursts(data_in, chunk_size, min_len_pause, min_len_burst, burst_buffer, noise_dist = noise_dist, max_dist = max_dist, return_cmp=False)
+        
+        return self.bursts[key]
+        
 
     def _decodeCsvWfm(self, file_name, csv_meta):
         '''
@@ -506,19 +751,28 @@ class RS_File():
 
         return self._data
 
-    def rawToDtypeOut(self, data):
+    def rawToDtypeOut(self, data, source=None):
         '''
         Helper function converting the data to DTYPE_OUT and applying the conversion_factor, offset and scaling to the given data.        
         
-        :param data: dict like self.data_raw
+        :param data: dict like self.data_raw or numpy array
+        :param sensor: Must be given if data is a numpy array. 
         '''
         
-        if self.meta['apply_offset']:
-            for key in data.keys():
-                data[key]=data[key].astype(self.DTYPE_OUT)
-                data[key] *= self.meta['conversion_factor'][key]
-                data[key] += self.meta['offset'][key]
-        
+        if type(data) == dict:
+            if self.meta['apply_offset']:
+                for key in data.keys():
+                    data[key]=data[key].astype(self.DTYPE_OUT)
+                    data[key] *= self.meta['conversion_factor'][key]
+                    data[key] += self.meta['offset'][key]
+        else:
+            if not source is None:
+                data=data.astype(self.DTYPE_OUT)
+                data *= self.meta['conversion_factor'][source]
+                data += self.meta['offset'][source]
+            else:
+                raise(RuntimeError('Wrong parameters'))
+    
         return data
 
     def _gen_start_stop_idx(self, acquisition, start, stop ):
@@ -582,7 +836,22 @@ class RS_File():
 
         return start_idx, stop_idx
 
-    def getRaw(self, acquisition=None, start = None, stop = None, source=None):
+    def _sanitize_sources(self, sources):
+        '''
+        Ensures the provided sources are a list. If None is provided a list of all available sources is returned. 
+        If a string is provided instead a list, a list is created from the string. 
+         
+        '''
+    
+        if sources is None:
+            sources= self.meta['source_names']
+
+        if type(sources) == str:
+            sources=[sources]
+        
+        return sources
+
+    def getRaw(self, acquisition=None, start = None, stop = None, sources=None):
         '''
         Filters the raw data using start stop and source.
         Returns something similar to the raw data but filtered. Time data is removed.
@@ -590,16 +859,20 @@ class RS_File():
         :param acquisition: 
         :param start: Index of starting sample
         :param stop: Index of final sample
-        :param source: Oscilloscope Source Name 
+        :param sources: Oscilloscope Source Names. Optional, defaults to None. If None all channels will be selected. Can also be a list or string pointing to a single channel.  
+        
+        :returns: If sources was None or a list a dictionary is returned. If sources was a string the data for that channel is returned.
         '''
+        
+        sources_sane=self._sanitize_sources(sources)
         
         # A bit of cryptic python code:). 
         # my_data is a dict like self.data_raw but filtered to source or meta['source_names']. 
         # This way we eliminate the time.
-        if source is None:
-            my_data={k:v for (k,v) in self.data_raw_RS.items() if k in self.meta['source_names']}
-        else:
-            my_data={k:v for (k,v) in self.data_raw_RS.items() if k in source}
+        #if sources is None:
+        #    my_data={k:v for (k,v) in self.data_raw_RS.items() if k in self.meta['source_names']}
+        #else:
+        my_data={k:v for (k,v) in self.data_raw_RS.items() if k in sources_sane}
         
         start_idx, stop_idx =self._gen_start_stop_idx(acquisition, start, stop)
            
@@ -607,7 +880,11 @@ class RS_File():
         # We will handle the time separately
         for key in my_data.keys():
             my_data[key]=my_data[key][start_idx:stop_idx]
-            
+         
+        # If we got a single string as an input, don't return a dictionary but the requested single channel. 
+        if type(sources) == str:
+            return my_data[sources]
+         
         return my_data
     
     @property
@@ -653,7 +930,7 @@ class RS_File():
         '''
         return self.meta['length_total']
     
-    def getAsDf(self, acquisition=None, start = None, stop = None, source=None, time=True):
+    def getAsDf(self, acquisition=None, start = None, stop = None, sources=None, time=True):
         '''
         Returns a dataframe containing the data between start and stop. By default, also timestamps will be included.
         You can set time to False to exclude timestamps.
@@ -666,7 +943,7 @@ class RS_File():
         :type time: Boolean
         '''
         # Filtering is done a separate function. We get filtered data without time.
-        my_data=self.getRaw(acquisition=acquisition, start = start, stop = stop, source=source)
+        my_data=self.getRaw(acquisition=acquisition, start = start, stop = stop, sources=sources)
         
         # We don't have time information in our data yet.
         # It's time to convert and scale.
