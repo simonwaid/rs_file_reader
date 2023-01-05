@@ -399,7 +399,7 @@ class ApplicationWindow(QMainWindow):
         self.label_selected_file.setText(fileName)
         
         print(f'File: {fileName}')
-        self.rs_file=RS_File(fileName)
+        self.rs_file=RS_File(fileName, False)
         self.rs_analysis=RS_Analysis(self.rs_file, self.cacheDir)
         self.cbox_trace.clear()
         self.cbox_trace.addItems(self.rs_file.signal_sources)

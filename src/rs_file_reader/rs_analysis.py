@@ -277,7 +277,7 @@ class RS_Analysis():
                 
         '''
         
-        data = self.rs_file.getRaw(start = start, stop = stop, sources=source)
+        data = self.rs_file.getRaw(start = start, stop = stop, source=source)
         #data=data[source]
         # We need to parameterize our 2D output array first.
         # We start with the number of y bins. 

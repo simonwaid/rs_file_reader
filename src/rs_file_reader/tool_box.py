@@ -2,6 +2,8 @@ import sys
 import os
 from multiprocessing import Pool, cpu_count, Process
 import json
+import pickle
+from copy import deepcopy
 
 def _except_hook(cls, exception, traceback):
     '''
@@ -9,7 +11,48 @@ def _except_hook(cls, exception, traceback):
     '''
     sys.__excepthook__(cls, exception, traceback)
     
+class Cache():
+    
+    def __init__(self, file_base, enable_cache):
+        
+        self.cache={}
+        if enable_cache:
+            self.cache_file=file_base + '.cache'
+            self.load()
+            
+    def write(self):
+        '''
+        Writes intermediate results to cache. 
+        '''
+        with open(self.cache_file, 'wb') as cache:
+            pickle.dump(self.cache, cache)
 
+    def load(self):
+        '''
+        Load intermediate results from cache.
+        '''
+        if os.path.exists(self.cache_file):
+            with open(self.cache_file, 'rb') as cache:
+                self.cache=pickle.load(cache)
+
+    def get(self, fname, key):
+        '''
+        Returns a cached value for a given function name and key. Returns None if no cached value is available.
+        '''
+        if not fname in self.cache:
+            self.cache[fname]={}
+        
+        if key in self.cache[fname]:
+            return self.cache[fname][key]
+        else:
+            return None
+            
+    def set(self, fname, key, value):
+        '''
+        Sets a value for a given function name and key pair
+        '''
+        if not fname in self.cache:
+            self.cache[fname]={}
     
 def pqt5_exception_workaround():
     '''
@@ -52,14 +95,11 @@ class Persival():
         '''
         return self.data[name]
     
-    
     def set(self, name, value):
         '''
         Store the given value in memory. You have to call save to dump the value to the disk. 
         '''
         self.data[name] = value
-       # print('Break')
-    
         
     def save(self):
         '''
@@ -67,9 +107,6 @@ class Persival():
         '''
         with open(self.persival_file, 'w') as file: 
             json.dump(self.data, file)
-    
-    
-    
     
 class ProcessingHelper():
     '''
@@ -88,7 +125,7 @@ class ProcessingHelper():
         :param args: list. Provice the positional arguments
         :param kwargs: dict. Optional, provide the kwargs
         '''
-        self.funcs.append({'func': function, 'args': args, 'kwargs': kwargs})
+        self.funcs.append({'func': function, 'args': deepcopy(args), 'kwargs': deepcopy(kwargs)})
         
     def clear(self):
         self.funcs=[]
@@ -114,6 +151,11 @@ class ProcessingHelper():
                 result.append(r)
                 
         return result
+    
+    
+    def __len__(self):
+        
+        return len(self.funcs)
     
     
     def _myrun(self, paramNo):

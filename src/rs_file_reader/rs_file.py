@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 import binascii
 from numba import njit 
+import pickle
+from .tool_box import Cache
 
 # Fraction of chunks used for standard deviation and average calculation.
 AVG_NO_CHUNKS=0.1
@@ -44,6 +46,29 @@ class Burst_Indices():
         '''
         '''
         return len(self.starts)
+     
+    def __iter__(self):
+        self.iter_idx= -1
+        return self
+
+    def __next__(self):
+        
+        if self.iter_idx < len(self.starts)-1:
+            self.iter_idx+=1
+            return self.starts[self.iter_idx], self.ends[self.iter_idx]
+        else:
+            raise StopIteration
+    
+    def __getitem__(self, item):
+        '''
+        
+        '''
+        starts= self.starts.__getitem__(item)
+        ends= self.ends.__getitem__(item)
+    
+        new_class=Burst_Indices(starts, ends)
+        
+        return new_class   
     
     def chop_signal(self, data=None):
         '''
@@ -57,7 +82,33 @@ class Burst_Indices():
             result.append(data[start:end])
             
         return result
-    
+
+    def subtract(self, index):
+        '''
+        Returns a new Instance where index has been subtracted from start and end indices
+        '''
+        
+        starts=self.starts- index
+        ends=self.ends- index
+        
+        new_class=Burst_Indices(starts, ends)
+        
+        return new_class
+
+
+    def divide(self, factor):
+        '''
+        Returns a new Instance where starts and ends index has been divided by factor.
+        '''
+        
+        starts=np.array([int(x/factor) for x in self.starts])
+        ends=np.array([int(x/factor) for x in self.ends])
+        
+        new_class=Burst_Indices(starts, ends)
+        
+        return new_class
+
+
     def get_durations(self):
         '''
         Returns the difference between ends and starts
@@ -81,7 +132,6 @@ class Burst_Indices():
         
         return new_class
 
-    
     def filter(self, min_idx, max_idx):
         '''
         Returns a new instance of this class containing only indices between min_idx and max_idx.
@@ -106,10 +156,8 @@ class Burst_Indices():
         '''
         self.starts += offset
         self.ends += offset
-        
-        
-    
 
+        
 def detect_bursts(data_in, chunk_size, min_len_pause, min_len_burst, burst_buffer, noise_dist = 7, max_dist = 0, return_cmp=False):
     '''
     Detect spills. 
@@ -134,10 +182,9 @@ def detect_bursts(data_in, chunk_size, min_len_pause, min_len_burst, burst_buffe
     :param max_dist: Optional.
     :param return_cmp: Optional. Defaults to False. If True cmp will be returned, if False, cmp will be None.
     
-    :returns  starts, ends, cmp, info: starts and ends contains the indexes at which spills start and end respectively. cmp and info contain internal information for debugging.
+    :returns  idx, cmp, info: idx contains the indexes at which spills start and end respectively. cmp and info contain internal information for debugging.
     
     '''
-    
     
     # Only integer indices make sense. Convert the input if the user has not done so yet.
     chunk_size=int(chunk_size)
@@ -178,31 +225,103 @@ def detect_bursts(data_in, chunk_size, min_len_pause, min_len_burst, burst_buffe
     cmp_b=cmp_a[:-1]-cmp_a[1:]
     ends=np.where(cmp_b == 1)[0]
     starts=np.where(cmp_b == -1)[0]
+       
+    # print(cmp_a[0])
+    # print(cmp_a[[starts[0]-1, starts[0], starts[0]+1]])
+    # print(cmp_a[[starts[0], starts[0]+1, starts[0]+2]])
+    # print(cmp_b[[starts[0]-1, starts[0], starts[0]+1]])
+    # print('\n')
+    # print(cmp_a[[ends[0]-1, ends[0], ends[0]+1]])
+    # print(cmp_b[[ends[0]-1, ends[0], ends[0]+1]])
+    # print('\n')
+
+    #print(starts[0:4]) 
+    #print(ends[0:4])
     del cmp_b
     
     # Handle the situation where we start or end with beam being present.
+
+    #ends=np.insert(ends,0,0)
     if cmp_a[0]:
-        #ends=np.insert(ends,0,0)
         starts=np.insert(starts,0,0)
         
-    if cmp_a[-1]:
+    #if cmp_a[-1]:
         #starts=np.append(starts,len(data_in)-1)
+    if cmp_a[-1]:        
         ends=np.append(ends,len(data_in)-1)
         
     # 2.3 Merge potential spills 
     max_dist_pause=int(min_pause)
-    
-    dist=np.subtract(starts[1:], ends[:-1])
-    real_spills=np.where(dist>max_dist_pause)[0]
-    starts_real=starts[real_spills +1 ]
-    ends_real=ends[real_spills]
 
-    #
-    if starts_real[0] > ends_real[0] :
-        starts_real=np.insert(starts_real, 0, starts[0])
-        ends_real=np.append(ends_real, ends[-1])
+    # Handle the situation where no peak was detected 
+    if len(starts) > 0:
         
-    # Eliminate spills which are too short
+        dist=np.subtract(starts[1:], ends[:-1])
+        real_spills=np.where(dist>max_dist_pause)[0]
+
+        # print(starts[:4])
+        # print(ends[:4])
+        # print('\n')
+        #
+        # print(starts[1:5])
+        # print(ends[:4])
+        #
+        # print(dist[:4])
+
+        ends_real=ends[np.append(real_spills, -1)]
+        starts_real=starts[np.insert(real_spills+1, 0, 0)]
+        
+        # print(starts_real[:4])
+        # print(ends_real[:4])
+        #
+
+                # if not real_spills[0] == 0:
+        #     real_spills=
+        # if not real_spills[-1] == len(ends):
+        #     real_spills=np.append(real_spills, -1)
+        
+        # real_spills_tst=real_spills[:3]
+
+  
+        # print(ends_real[real_spills_tst-1])
+        # print(ends[real_spills_tst-1])
+        # print('\n')
+        # print(starts[real_spills_tst])
+        # print(ends[real_spills_tst])
+        # print('\n')
+        # print(starts[real_spills_tst+1])
+        # print(ends[real_spills_tst+1])
+        #
+
+            
+    else:
+        starts_real=starts
+        ends_real=ends
+
+    #if starts_real[0] > ends_real[0] :
+    #    starts_real=np.insert(starts_real, 0, starts[0])
+    #    ends_real=np.append(ends_real, ends[-1])
+
+
+    # The content of cmp has the same size as data_in and can thus become quite large. 
+    # As it is only used for debugging, we normally don't care about it and thus avoid the overhead of returning it. 
+    if not return_cmp:
+        cmp_a=None
+
+    # If zero bursts were found at this point any further analysis will fail. 
+    # If this is the case, we abort the analysis and return what we have prepared up to now  
+    info={'chunks_std_idx': chunks_std_idx,\
+          'chunks_std': chunks_std,\
+          'chunks_avg': chunks_avg, \
+          'ref_avg' : ref_avg, \
+          'threshold_upper': threshold_upper, \
+          'threshold_lower': threshold_lower}
+          
+    if len(starts_real) ==0:
+        return None, info, cmp_a
+    
+        
+    # Merge spills which are too short
     dist=np.subtract(ends_real, starts_real)
     real_spills=np.where(dist>min_spill)[0]
     starts_real=starts_real[real_spills]
@@ -217,22 +336,10 @@ def detect_bursts(data_in, chunk_size, min_len_pause, min_len_burst, burst_buffe
     indices_raw=Burst_Indices(starts, ends)
     indices_nobuf=Burst_Indices(starts_real, ends_real)
     
+    info['indices_raw']= indices_raw
+    info['indices_nobuf'] = indices_nobuf
     
-    info={'chunks_std_idx': chunks_std_idx,\
-          'chunks_std': chunks_std,\
-          'chunks_avg': chunks_avg, \
-          'ref_avg' : ref_avg, \
-          'threshold_upper': threshold_upper, \
-          'threshold_lower': threshold_lower, \
-          'indices_raw': indices_raw, \
-          'indices_nobuf': indices_nobuf}
-    
-    # The content of cmp has the same size as data_in and can thus become quite large. 
-    # As it is only used for debugging, we normally don't care about it and thus avoid the overhead of returning it. 
-    if not return_cmp:
-        cmp_a=None
-    
-    return indices_buf, cmp_a, info 
+    return indices_buf, info, cmp_a
 
 class RS_File():
     '''
@@ -260,16 +367,19 @@ class RS_File():
     else:
         DTYPE_OUT = np.float32
     
-    def __init__(self, file_name):
+    def __init__(self, file_name, enable_cache):
         '''
         :param file_name: The file name without extension.
         '''
         # Read the metadata first. We provide the data to the user via the .xml property.
         # If the data is anything else than a normal waveform (TraceType is eRS_TRACE_TYPE_NORMAL) we reject the file.
         
+        self.file_name=file_name
         file_base, file_extension = os.path.splitext(file_name)
         self.metadata_file = file_name
         self.waveform_file = file_base + '.Wfm' + file_extension
+        self.cache=Cache(file_base, enable_cache)
+        
         # Now decode the file. 
         # If this takes too long one should consider not executing this during the class initialization.
         if file_extension == '.bin':
@@ -283,7 +393,6 @@ class RS_File():
             self._data, self.meta=self._decodeCsvWfm(self.waveform_file, self.csv_meta)
         else:
             raise(RuntimeError('File type not implemented.'))
-
 
         self.bursts={}
         self.meta['metadata_file'] = self.metadata_file
@@ -311,7 +420,6 @@ class RS_File():
             
         length = stop - start
         #t=time.time()
-        
         timestamps = np.linspace(xStart, xStop, length, dtype = np.float64)
         return timestamps
     
@@ -352,15 +460,19 @@ class RS_File():
         
         '''
         
+        fname='detect_bursts'
         key=f'{source}, {chunk_size}, {min_len_pause}, {min_len_burst}, {burst_buffer}, {noise_dist}, {max_dist}'
         
-        if not key in self.bursts:
-            
-            data_in=self.getRaw(sources=source)
-            self.bursts[key]=detect_bursts(data_in, chunk_size, min_len_pause, min_len_burst, burst_buffer, noise_dist = noise_dist, max_dist = max_dist, return_cmp=False)
+        # Try to get the result from  cache
+        result=self.cache.get(fname, key)
+
+        if result is None:
+            data_in=self.getRaw(source=source)
+            result=detect_bursts(data_in, chunk_size, min_len_pause, min_len_burst, burst_buffer, noise_dist = noise_dist, max_dist = max_dist, return_cmp=False)
+            self.cache.set(fname, key, result)
+            self.cache.write()
         
-        return self.bursts[key]
-        
+        return result
 
     def _decodeCsvWfm(self, file_name, csv_meta):
         '''
@@ -615,7 +727,6 @@ class RS_File():
         index=time_offset/self.meta['t_sample']
         return int(index)
 
-
     def indexToTime(self, index, out_of_range="None"):
         '''
         Returns the time corresponding to the given index in seconds. Returns None if the time is out of range.
@@ -694,7 +805,6 @@ class RS_File():
         # Then we reshape and convert to float as we want to do some math on the data later on.
         # We seem to have 8 bytes of offset
         # Just load the data once it is really needed, not already during initializing.
-            
             
             #with open(self.waveform_file,"rb") as file:
             #    self.binary_header_a=file.read(4)
@@ -851,7 +961,7 @@ class RS_File():
         
         return sources
 
-    def getRaw(self, acquisition=None, start = None, stop = None, sources=None):
+    def getRaw(self, acquisition=None, start = None, stop = None, source=None):
         '''
         Filters the raw data using start stop and source.
         Returns something similar to the raw data but filtered. Time data is removed.
@@ -864,7 +974,7 @@ class RS_File():
         :returns: If sources was None or a list a dictionary is returned. If sources was a string the data for that channel is returned.
         '''
         
-        sources_sane=self._sanitize_sources(sources)
+        source_sane=self._sanitize_sources(source)
         
         # A bit of cryptic python code:). 
         # my_data is a dict like self.data_raw but filtered to source or meta['source_names']. 
@@ -872,7 +982,7 @@ class RS_File():
         #if sources is None:
         #    my_data={k:v for (k,v) in self.data_raw_RS.items() if k in self.meta['source_names']}
         #else:
-        my_data={k:v for (k,v) in self.data_raw_RS.items() if k in sources_sane}
+        my_data={k:v for (k,v) in self.data_raw_RS.items() if k in source_sane}
         
         start_idx, stop_idx =self._gen_start_stop_idx(acquisition, start, stop)
            
@@ -882,8 +992,8 @@ class RS_File():
             my_data[key]=my_data[key][start_idx:stop_idx]
          
         # If we got a single string as an input, don't return a dictionary but the requested single channel. 
-        if type(sources) == str:
-            return my_data[sources]
+        if type(source) == str:
+            return my_data[source]
          
         return my_data
     
@@ -930,7 +1040,7 @@ class RS_File():
         '''
         return self.meta['length_total']
     
-    def getAsDf(self, acquisition=None, start = None, stop = None, sources=None, time=True):
+    def getAsDf(self, acquisition=None, start = None, stop = None, source=None, time=True):
         '''
         Returns a dataframe containing the data between start and stop. By default, also timestamps will be included.
         You can set time to False to exclude timestamps.
@@ -942,12 +1052,18 @@ class RS_File():
         :param time: Optional. Defaults to True. If false, no time data is returned.
         :type time: Boolean
         '''
-        # Filtering is done a separate function. We get filtered data without time.
-        my_data=self.getRaw(acquisition=acquisition, start = start, stop = stop, sources=sources)
         
-        # We don't have time information in our data yet.
-        # It's time to convert and scale.
-        my_data=self.rawToDtypeOut(my_data)
+        
+        sources_sanitized=self._sanitize_sources(source)
+        
+        for_df={}
+        for source in sources_sanitized:
+            # Filtering is done a separate function. We get filtered data without time.
+            my_data=self.getRaw(acquisition=acquisition, start = start, stop = stop, source=source)
+        
+            # We don't have time information in our data yet.
+            # It's time to convert and scale.
+            for_df[source]=self.rawToDtypeOut(my_data, source=source)
         
         # We now have to add the time if requested by the user.
         # If xy data was selected we get a time axis from the oscilloscope. 
@@ -966,16 +1082,17 @@ class RS_File():
                 except:
                     print('Breakpoint')
                     raise
-                my_data['Time']=timestamps
+                for_df['Time']=timestamps
         
         # Generate a DataFrame
         try:
-            df = pd.DataFrame(my_data)
+            df = pd.DataFrame(for_df)
         except:
             print('Breakpoint')
             raise
         
         return df
+
 
     def getLimitedStartStop(self):
         '''
@@ -1004,7 +1121,6 @@ class RS_File():
             start = 0
         if stop > dfLen:
             stop = dfLen
-
         
         return start, stop
     
