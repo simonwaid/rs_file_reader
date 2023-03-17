@@ -128,8 +128,6 @@ class RS_Analysis():
         else:
             self.memory = None
 
-
-
     
     def fastStat(self, sources=None, offset_meth='avg'):
         '''
@@ -219,7 +217,7 @@ class RS_Analysis():
         #raise(RuntimeError('This function is buggy, please fix is p'))
         
         # Get filtered data
-        data = self.rs_file.getRaw(acquisition=acquisition, start = start, stop = stop, sources=None)
+        data = self.rs_file.getRaw(acquisition=acquisition, start = start, stop = stop, source=None)
         
         result = {}
         

@@ -11,7 +11,7 @@ skip-excluded-dirs = true
 
 [project]
 name = "rs_file_reader"
-version = "0.2.5"
+version = "0.2.6"
 authors = [
   { name="Simon Waid", email="simon.waid@oeaw.ac.at" },
 ]

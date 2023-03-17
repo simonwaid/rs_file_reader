@@ -367,7 +367,7 @@ class RS_File():
     else:
         DTYPE_OUT = np.float32
     
-    def __init__(self, file_name, enable_cache):
+    def __init__(self, file_name, enable_cache=False):
         '''
         :param file_name: The file name without extension.
         '''
@@ -1063,7 +1063,12 @@ class RS_File():
         
             # We don't have time information in our data yet.
             # It's time to convert and scale.
-            for_df[source]=self.rawToDtypeOut(my_data, source=source)
+            #if not source in self.meta['conversion_factor'].keys():
+            #    print('Breakpoint')
+            if self.meta['apply_offset']:
+                for_df[source]=self.rawToDtypeOut(my_data, source=source)
+            else:
+                for_df[source]=my_data
         
         # We now have to add the time if requested by the user.
         # If xy data was selected we get a time axis from the oscilloscope. 
@@ -1074,7 +1079,7 @@ class RS_File():
                 name=self.meta['channel_name'][tsChannel]
                 # If we have x-y data we also have to apply the start stop filter.
                 start_idx, stop_idx=self._gen_start_stop_idx(acquisition, start, stop)
-                my_data[name]=self.data_raw_RS[name][start_idx:stop_idx]
+                for_df[name]=self.data_raw_RS[name][start_idx:stop_idx]
             else:
                 # Generate time stamps. We only generate them for the inteval between start and stop
                 try:
