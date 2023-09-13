@@ -44,11 +44,12 @@ class PlotWindow(QMainWindow):
 
         self.figure=Figure()
         self.canvas = FigureCanvas(self.figure)
-        self.ax = self.canvas.figure.subplots()
+        self.main_ax = self.canvas.figure.subplots()
         self.plot=None
         self.layout.addWidget(self.canvas)
         self.addToolBar(NavigationToolbar(self.canvas, self))
-    
+        self.color_map = iter([plt.cm.tab10(i) for i in range(10)])
+        
         self.show()
 
 
@@ -73,15 +74,15 @@ class PlotWindow(QMainWindow):
         
         t=time.time()
         if self.plot is None:
-            self.plot=self.ax.imshow(histo_t_log, aspect=aspect, cmap='gist_stern',  extent=extent)
-            self.ax.set_xlabel('Time / s')
-            self.ax.set_ylabel('Voltage / v')
+            self.plot=self.main_ax.imshow(histo_t_log, aspect=aspect, cmap='gist_stern',  extent=extent)
+            self.main_ax.set_xlabel('Time / s')
+            self.main_ax.set_ylabel('Voltage / v')
             cbar=self.figure.colorbar(self.plot)
             cbar.set_label("Logarithm of no. of occurrence")
         else:
             self.plot.set_data(histo_t)
             self.plot.set_extent(extent)
-            self.ax.set_aspect(aspect)
+            self.main_ax.set_aspect(aspect)
             
         print('Plotting column: ', time.time() - t)
         t = time.time()
@@ -102,30 +103,49 @@ class PlotWindow(QMainWindow):
         
         plt_data = rs_file.getAsDf(start=start_idx, stop=stop_idx, source=source)
         
+        self._update_td_ft(plt_data, 'Time / s', 'Voltage / v')
+    
+    def _update_td_ft(self, plt_data, x_label, y_label):
+
         columns=list(plt_data.columns)
         columns.remove('Time')
         print(columns)
         xdata=plt_data['Time']
         print('Length', len(xdata))
         print('Updating plot ... ')
+        
         if self.plot is None:
             self.plot = {}
-            for column in columns:   
-                ydata=plt_data[column]
-                plot=self.ax.plot(xdata, ydata)
-                self.plot[column] =plot
-                self.ax.set_xlabel('Time / s')
-                self.ax.set_ylabel('Voltage / v')
-            
-        else:
-            for column in columns:
-                ydata=plt_data[column]
+            self.ax= {} 
+            self.colors= {} 
+        for i, column in enumerate(columns):
+            ydata=plt_data[column]    
+            if not column in self.colors:
+                self.colors[column]=next(self.color_map)
+
+            if not column in self.ax:
+                if len(self.ax.keys()) == 0:
+                    self.ax[column]=self.main_ax
+                else:
+                    self.ax[column]=self.main_ax.twinx()
+                self.ax[column].set_ylabel(y_label)
+                self.ax[column].yaxis.label.set_color(self.colors[column])
+
+            if column in self.plot:
                 self.plot[column][0].set_xdata(xdata)
                 self.plot[column][0].set_ydata(ydata)
-
-        # Trigger the canvas to update and redraw.
-        self.figure.tight_layout()
+                self.ax[column].relim()
+                self.ax[column].autoscale_view()
+            else:        
+                plot=self.ax[column].plot(xdata, ydata, alpha=0.5, c=self.colors[column])
+                self.plot[column] =plot
+                self.ax[column].set_xlabel(x_label)
+            
+        self.figure.tight_layout()            
         self.canvas.draw()
+        self.figure.canvas.flush_events()
+                    
+        # Trigger the canvas to update and redraw.
         self.show()
         
     def update_fourier_plot(self, rs_file, source, start, stop):
@@ -165,14 +185,23 @@ class PlotWindow(QMainWindow):
         y=2.0/N * np.abs(yf[1:N//2])
         
         if self.plot is None:
-            self.plot=self.ax.loglog(x, y)
-            self.ax.set_xlabel('Frequency / Hz')
-            self.ax.set_ylabel('Voltage / v')
+            self.plot=self.main_ax.loglog(x, y)
+            self.main_ax.set_xlabel('Frequency / Hz')
+            self.main_ax.set_ylabel('Voltage / v')
+            self.main_ax.relim()
+            self.main_ax.autoscale_view()
+            self.figure.tight_layout()            
+            self.canvas.draw()
+            self.figure.canvas.flush_events()
         else:
+
             self.plot[0].set_xdata(x)
             self.plot[0].set_ydata(y)
-        self.figure.tight_layout()            
-        self.canvas.draw()
+            self.main_ax.relim()
+            self.main_ax.autoscale_view()
+            self.figure.tight_layout()            
+            self.canvas.draw()
+            
         self.show()
         
 #        plt.loglog(xf[1:N//2], 2, '-b')
