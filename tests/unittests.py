@@ -4,8 +4,12 @@
     Date created: 2021
     Python Version: 3.8, 3.9
 '''
+import os, sys
+dir_path = os.path.dirname(os.path.realpath(__file__))
+search_path =os.path.abspath(os.path.dirname(os.path.join(dir_path, '../..')))
+print(search_path)
 
-
+sys.path.append(search_path)
 import unittest
 from src.rs_file_reader import RS_File
 from src.rs_file_reader import RS_Analysis
@@ -15,7 +19,6 @@ import pandas as pd
 import logging
 import numpy as np
 logging.basicConfig(level=logging.INFO)
-
 
 
 singles=["2021-09-14 17_44_28.996310.bin"]
@@ -49,7 +52,7 @@ def fullPath(file):
     '''
     Convenience function.
     '''
-    directory='testdata'
+    directory=os.path.join(dir_path, 'testdata')
     return os.path.join(directory, file)
  
 
@@ -149,7 +152,7 @@ class Test_RS_bin_file(unittest.TestCase):
         directory='testdata'
         # Iteate over all couples of files and compare them.
         for binary in singles:
-            binary_file=os.path.join(directory, binary)
+            binary_file=fullPath(binary)#os.path.join(directory, binary)
             RS_File(binary_file)
 
     def test_fileSize(self):
@@ -197,12 +200,7 @@ class Test_RS_bin_file(unittest.TestCase):
         #for file in xml_not_ok_file:
         #    rs_file=RS_file(fullPath(file))
         #    self.assertFalse(rs_file.check_xml(), f'Error in file {file}')
-    
-    
-        
-            
-            
-            
+
             
             
 class Test_Det_file(unittest.TestCase):
