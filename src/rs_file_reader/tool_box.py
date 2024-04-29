@@ -13,10 +13,13 @@ def _except_hook(cls, exception, traceback):
     
 class Cache():
     
-    def __init__(self, file_base, enable_cache):
-        
+    def __init__(self, file_base, enable_disk_cache):
+        '''
+        :param enable_disk_cache: If True on-disk cache will be used. Alternatively only. in-memory cache will be employed.
+        '''
+        self.enable_disk_cache=enable_disk_cache
         self.cache={}
-        if enable_cache:
+        if enable_disk_cache:
             self.cache_file=file_base + '.cache'
             self.load()
             
@@ -24,14 +27,15 @@ class Cache():
         '''
         Writes intermediate results to cache. 
         '''
-        with open(self.cache_file, 'wb') as cache:
-            pickle.dump(self.cache, cache)
+        if self.enable_disk_cache: 
+            with open(self.cache_file, 'wb') as cache:
+                pickle.dump(self.cache, cache)
 
     def load(self):
         '''
         Load intermediate results from cache.
         '''
-        if os.path.exists(self.cache_file):
+        if self.enable_disk_cache and os.path.exists(self.cache_file):
             with open(self.cache_file, 'rb') as cache:
                 self.cache=pickle.load(cache)
 

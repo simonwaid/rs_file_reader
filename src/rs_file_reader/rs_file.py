@@ -355,6 +355,7 @@ class RS_File():
     :property xml_tags: Dictionary. The keys are the 'Name' attributes and the 'Values' attributes from the .xml file. This is a convenient way of accessing the most interesting part of the xml file. 
     :property xml_root: The metadata from the .xml file. This an instance of .. .
     :property meta: Dictionary containing meta data. 
+
     
     '''
     # We work with a lot of data. Theoretically using vaex would be a good idea.
@@ -370,6 +371,7 @@ class RS_File():
     def __init__(self, file_name, enable_cache=False):
         '''
         :param file_name: The file name without extension.
+        :param enable_cache: Defaults to False, if True, an on-diks cache will be used.
         '''
         # Read the metadata first. We provide the data to the user via the .xml property.
         # If the data is anything else than a normal waveform (TraceType is eRS_TRACE_TYPE_NORMAL) we reject the file.
